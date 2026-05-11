@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-    connStr := "postgres://postgres:Joelmalinda54045404@db.uvkjmwhdsxwcyifhqgpg.supabase.co:5432/postgres"
+    connStr := "postgresql://postgres.uvkjmwhdsxwcyifhqgpg:Joelmalinda54045404@aws-1-us-west-2.pooler.supabase.com:5432/postgres"
     db, err := pgx.Connect(context.Background(), connStr)
     if err != nil {
         log.Fatalf("Erro banco: %v\n", err)
