@@ -13,10 +13,18 @@ import (
     
     "github.com/gorilla/mux"
     "github.com/jackc/pgx/v5"
+    "github.com/joho/godotenv"
 )
 
 func main() {
-    connStr := "postgresql://postgres.uvkjmwhdsxwcyifhqgpg:Joelmalinda54045404@aws-1-us-west-2.pooler.supabase.com:5432/postgres"
+
+    errgod := godotenv.Load()
+    if errgod != nil {
+        log.Fatal("Erro ao carregar o arquivo .env")
+    }
+
+    connStr := os.Getenv("DATABASE_URL")
+
     db, err := pgx.Connect(context.Background(), connStr)
     if err != nil {
         log.Fatalf("Erro banco: %v\n", err)
