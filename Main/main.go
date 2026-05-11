@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var db *pgx.Conn
@@ -21,6 +22,26 @@ type Sessao struct {
 }
 
 var sessaoAtual *Sessao = nil
+
+// ============================================================
+//  FUNÇÕES DE SENHA (bcrypt)
+// ============================================================
+
+// GerarHashSenha cria um hash seguro a partir da senha em texto puro
+func GerarHashSenha(senha string) (string, error) {
+    // Custo padrão é 10 (pode ser aumentado para mais segurança, mas mais lento)
+    bytes, err := bcrypt.GenerateFromPassword([]byte(senha), bcrypt.DefaultCost)
+    if err != nil {
+        return "", fmt.Errorf("erro ao gerar hash da senha: %v", err)
+    }
+    return string(bytes), nil
+}
+
+// VerificarSenha compara a senha em texto puro com o hash armazenado
+func VerificarSenha(senha string, hashArmazenado string) bool {
+    err := bcrypt.CompareHashAndPassword([]byte(hashArmazenado), []byte(senha))
+    return err == nil // Se err == nil, a senha está correta!
+}
 
 func main() {
 	connStr := "postgres://postgres:Joelmalinda54045404@db.uvkjmwhdsxwcyifhqgpg.supabase.co:5432/postgres"
@@ -116,39 +137,42 @@ func menuDaConta() {
 	fmt.Println("                                                                   ")
 	fmt.Println("     ⚙️  CONTA                                                 ")
 	fmt.Println("     [9]  ✏️  Editar Meus Dados                               ")
-	fmt.Println("     [10] 🔒 Bloquear Conta                                     ")
-	fmt.Println("     [11] 🚪 Sair da Conta (Logout)                              ")
+	fmt.Println("     [10] 🔑 Mudar Senha                                       ")  // ← NOVO!
+	fmt.Println("     [11] 🔒 Bloquear Conta                                     ")
+	fmt.Println("     [12] 🚪 Sair da Conta (Logout)                              ")  // Número mudou!
 	fmt.Println("                                                                   ")
 	fmt.Println("╚═══════════════════════════════════════════════════════════════╝")
 
 	fmt.Print("\n   Opção: ")
 	switch lerInput() {
-	case "1":
-		consultarSaldo()
-	case "2":
-		verExtrato()
-	case "3":
-		fazerPIX()
-	case "4":
-		depositar()
-	case "5":
-		sacar()
-	case "6":
-		listarChavesPix()
-	case "7":
-		adicionarChavePixLogado()
-	case "8":
-		removerChavePix()
-	case "9":
-		editarDados()
-	case "10":
-		bloquearConta()
-	case "11":
-		fmt.Printf("\n👋 Até logo, %s!\n", sessaoAtual.Nome)
-		sessaoAtual = nil // Logout seguro
-	default:
-		fmt.Println("❌ Opção inválida!")
-	}
+case "1":
+    consultarSaldo()
+case "2":
+    verExtrato()
+case "3":
+    fazerPIX()
+case "4":
+    depositar()
+case "5":
+    sacar()
+case "6":
+    listarChavesPix()
+case "7":
+    adicionarChavePixLogado()
+case "8":
+    removerChavePix()
+case "9":
+    editarDados()
+case "10":
+    mudarSenha()  // ← NOVO!
+case "11":
+    bloquearConta()
+case "12":
+    fmt.Printf("\n👋 Até logo, %s!\n", sessaoAtual.Nome)
+    sessaoAtual = nil
+default:
+    fmt.Println("❌ Opção inválida!")
+}
 }
 
 // ============================================================
@@ -156,42 +180,59 @@ func menuDaConta() {
 // ============================================================
 
 func fazerLogin() {
-	fmt.Println("\n╔════════════════════════════════════════╗")
-	fmt.Println("║     🔐 ACESSO À CONTA                   ")
-	fmt.Println("╚════════════════════════════════════════╝")
+    fmt.Println("\n╔════════════════════════════════════════╗")
+    fmt.Println("║     🔐 ACESSO À CONTA                   ")
+    fmt.Println("╚════════════════════════════════════════╝")
 
-	fmt.Print("\n🆔 Digite seu CPF (número da conta): ")
-	cpfTxt := lerInput()
+    fmt.Print("\n🆔 Digite seu CPF (número da conta): ")
+    cpfTxt := lerInput()
 
-	cpfValido, ehValido := validarCPF(cpfTxt)
-	if !ehValido {
-		fmt.Println("❌ CPF inválido!")
-		mostrarErroCPF(cpfTxt)
-		return
-	}
+    cpfValido, ehValido := validarCPF(cpfTxt)
+    if !ehValido {
+        fmt.Println("❌ CPF inválido!")
+        mostrarErroCPF(cpfTxt)
+        return
+    }
 
-	// Buscar conta no banco
-	var nome string
-	var saldo int
+    // NOVO: Pedir senha!
+    fmt.Print("🔑 Digite sua senha: ")
+    senha := lerInput()
+    if len(senha) < 1 {
+        fmt.Println("❌ Senha não pode ser vazia!")
+        return
+    }
 
-	err := db.QueryRow(context.Background(),
-		"SELECT owner, balance FROM contas WHERE cpf=$1", cpfValido).Scan(&nome, &saldo)
+    // Buscar conta no banco (AGORA INCLUINDO A SENHA!)
+    var nome string
+    var saldo int
+    var senhaHash string
+    
+    err := db.QueryRow(context.Background(), 
+        "SELECT owner, balance, senha FROM contas WHERE cpf=$1", 
+        cpfValido).Scan(&nome, &saldo, &senhaHash)
 
-	if err != nil {
-		fmt.Println("\n❌ Conta não encontrada!")
-		fmt.Println("   Verifique se digitou o CPF corretamente.")
-		fmt.Println("   Se não tem conta, escolha 'Criar nova conta'.")
-		return
-	}
+    if err != nil {
+        fmt.Println("\n❌ Conta não encontrada!")
+        fmt.Println("   Verifique se digitou o CPF corretamente.")
+        fmt.Println("   Se não tem conta, escolha 'Criar nova conta'.")
+        return
+    }
 
-	// Login bem-sucedido!
-	sessaoAtual = &Sessao{
-		CPF:  cpfValido,
-		Nome: nome,
-	}
+    // NOVO: Verificar senha com bcrypt!
+    if !VerificarSenha(senha, senhaHash) {
+        fmt.Println("\n❌ Senha incorreta!")
+        fmt.Println("   Tente novamente.")
+        return
+    }
 
-	fmt.Println("\n✅ Login realizado com sucesso!")
-	fmt.Printf("   Bem-vindo(a) de volta, %s!\n", nome)
+    // Login bem-sucedido!
+    sessaoAtual = &Sessao{
+        CPF:  cpfValido,
+        Nome: nome,
+    }
+
+    fmt.Println("\n✅ Login realizado com sucesso!")
+    fmt.Printf("   Bem-vindo(a) de volta, %s!\n", nome)
 }
 
 // ============================================================
@@ -199,71 +240,96 @@ func fazerLogin() {
 // ============================================================
 
 func criarConta() {
-	fmt.Println("\n┌─────────────────────────────────────────────────────┐")
-	fmt.Println("                ➕ ABERTURA DE CONTA                   ")
-	fmt.Println("└─────────────────────────────────────────────────────┘")
+    fmt.Println("\n┌─────────────────────────────────────────────────────┐")
+    fmt.Println("                ➕ ABERTURA DE CONTA                   ")
+    fmt.Println("└─────────────────────────────────────────────────────┘")
 
-	fmt.Print("\n✏️  Nome completo: ")
-	nome := lerInput()
-	if len(nome) < 3 {
-		fmt.Println("❌ Nome muito curto!")
-		return
-	}
+    fmt.Print("\n✏️  Nome completo: ")
+    nome := lerInput()
+    if len(nome) < 3 {
+        fmt.Println("❌ Nome muito curto!")
+        return
+    }
 
-	fmt.Print("🆔 Seu CPF: ")
-	cpfTxt := lerInput()
+    fmt.Print("🆔 Seu CPF: ")
+    cpfTxt := lerInput()
 
-	cpfValido, ok := validarCPF(cpfTxt)
-	if !ok {
-		fmt.Println("❌ CPF inválido!")
-		return
-	}
+    cpfValido, ok := validarCPF(cpfTxt)
+    if !ok {
+        fmt.Println("❌ CPF inválido!")
+        return
+    }
 
-	var existente string
-	err := db.QueryRow(context.Background(), "SELECT owner FROM contas WHERE cpf=$1", cpfValido).Scan(&existente)
-	if err == nil {
-		fmt.Printf("⚠️  CPF já cadastrado para: %s\n", existente)
-		return
-	}
+    var existente string
+    err := db.QueryRow(context.Background(), "SELECT owner FROM contas WHERE cpf=$1", cpfValido).Scan(&existente)
+    if err == nil {
+        fmt.Printf("⚠️  CPF já cadastrado para: %s\n", existente)
+        return
+    }
 
-	fmt.Print("💰 Depósito inicial R$ (mín. R$ 10,00): ")
-	saldoTxt := lerInput()
-	saldo, err := strconv.ParseFloat(saldoTxt, 64)
-	if err != nil || saldo < 10 {
-		fmt.Println("❌ Mínimo R$ 10,00!")
-		return
-	}
+    // ════════════════════════════════════════════════
+    // NOVO: PEDIR SENHA!
+    // ════════════════════════════════════════════════
+    fmt.Print("🔑 Crie uma senha (mínimo 6 caracteres): ")
+    senha := lerInput()
+    if len(senha) < 6 {
+        fmt.Println("❌ Senha muito curta! Mínimo 6 caracteres.")
+        return
+    }
+    
+    fmt.Print("🔑 Confirme sua senha: ")
+    senhaConfirmacao := lerInput()
+    if senha != senhaConfirmacao {
+        fmt.Println("❌ As senhas não coincidem!")
+        return
+    }
+    
+    // Gerar hash da senha (NUNCA armazenar em texto puro!)
+    senhaHash, err := GerarHashSenha(senha)
+    if err != nil {
+        fmt.Printf("❌ Erro ao processar senha: %v\n", err)
+        return
+    }
 
-	_, err = db.Exec(context.Background(),
-		`INSERT INTO contas (cpf, owner, balance) VALUES ($1, $2, $3)`,
-		cpfValido, nome, int(saldo*100))
+    fmt.Print("💰 Depósito inicial R$ (mín. R$ 10,00): ")
+    saldoTxt := lerInput()
+    saldo, err := strconv.ParseFloat(saldoTxt, 64)
+    if err != nil || saldo < 10 {
+        fmt.Println("❌ Mínimo R$ 10,00!")
+        return
+    }
 
-	if err != nil {
-		fmt.Printf("❌ Erro: %v\n", err)
-		return
-	}
+    // NOVO: Incluir senha no INSERT!
+    _, err = db.Exec(context.Background(),
+        `INSERT INTO contas (cpf, owner, balance, senha) VALUES ($1, $2, $3, $4)`,
+        cpfValido, nome, int(saldo*100), senhaHash)
 
-	sessaoAtual = &Sessao{CPF: cpfValido, Nome: nome}
+    if err != nil {
+        fmt.Printf("❌ Erro: %v\n", err)
+        return
+    }
 
-	fmt.Println("\n╔═══════════════════════════════════════════════════════════╗")
-	fmt.Println("              🎉 CONTA CRIADA COM SUCESSO!                 ")
-	fmt.Println("╠═══════════════════════════════════════════════════════════╣")
-	fmt.Println("                                                            ")
-	fmt.Println("     ┌─ DADOS DE ACESSO ────────────────────────────┐       ")
-	fmt.Printf("         🏦 Conta:  %-33s        \n", formatarCPF(cpfValido))
-	fmt.Println("         🔑 Senha:  Seu CPF                                   ")
-	fmt.Println("     └─────────────────────────────────────────────┘       ")
-	fmt.Println("                                                            ")
-	fmt.Printf("     👤 Titular:  %-42s   \n", nome)
-	fmt.Printf("     💰 Saldo:    R$ %-38s   \n", fmt.Sprintf("%.2f", saldo))
-	fmt.Println("                                                            ")
-	fmt.Println("     ✅ Você já está logado!                                ")
-	fmt.Println("╚═══════════════════════════════════════════════════════════╝")
+    sessaoAtual = &Sessao{CPF: cpfValido, Nome: nome}
 
-	fmt.Print("\n🔑 Cadastrar chave PIX agora? (s/n): ")
-	if strings.ToLower(lerInput()) == "s" {
-		adicionarChavePixLogado()
-	}
+    fmt.Println("\n╔═══════════════════════════════════════════════════════════╗")
+    fmt.Println("              🎉 CONTA CRIADA COM SUCESSO!                 ")
+    fmt.Println("╠═══════════════════════════════════════════════════════════╣")
+    fmt.Println("                                                            ")
+    fmt.Println("     ┌─ DADOS DE ACESSO ────────────────────────────┐       ")
+    fmt.Printf("         🏦 Conta:  %-33s        \n", formatarCPF(cpfValido))
+    fmt.Println("         🔑 Senha:  A que você criou                             ")  // Mudou aqui!
+    fmt.Println("     └─────────────────────────────────────────────┘       ")
+    fmt.Println("                                                            ")
+    fmt.Printf("     👤 Titular:  %-42s   \n", nome)
+    fmt.Printf("     💰 Saldo:    R$ %-38s   \n", fmt.Sprintf("%.2f", saldo))
+    fmt.Println("                                                            ")
+    fmt.Println("     ✅ Você já está logado!                                ")
+    fmt.Println("╚═══════════════════════════════════════════════════════════╝")
+
+    fmt.Print("\n🔑 Cadastrar chave PIX agora? (s/n): ")
+    if strings.ToLower(lerInput()) == "s" {
+        adicionarChavePixLogado()
+    }
 }
 
 // ============================================================
@@ -1069,6 +1135,90 @@ func editarDados() {
 	default:
 		fmt.Println("❌ Opção inválida!")
 	}
+}
+
+// ============================================================
+//  13. MUDAR SENHA
+// ============================================================
+
+func mudarSenha() {
+    fmt.Println("\n┌─────────────────────────────────────────────────────┐")
+    fmt.Println("              🔑 ALTERAÇÃO DE SENHA                     ")
+    fmt.Println("└─────────────────────────────────────────────────────┘")
+
+    fmt.Printf("\n🆔 Conta: %s\n", formatarCPF(sessaoAtual.CPF))
+    fmt.Printf("👤 Titular: %s\n", sessaoAtual.Nome)
+
+    // Passo 1: Pedir senha ATUAL para confirmar identidade
+    fmt.Print("\n🔑 Digite sua senha ATUAL: ")
+    senhaAtual := lerInput()
+
+    // Buscar hash atual do banco
+    var senhaHash string
+    err := db.QueryRow(context.Background(),
+        "SELECT senha FROM contas WHERE cpf=$1",
+        sessaoAtual.CPF).Scan(&senhaHash)
+
+    if err != nil {
+        fmt.Println("\n❌ Erro ao buscar dados da conta!")
+        return
+    }
+
+    // Verificar se a senha atual está correta
+    if !VerificarSenha(senhaAtual, senhaHash) {
+        fmt.Println("\n❌ Senha ATUAL incorreta!")
+        fmt.Println("   Não foi possível alterar a senha.")
+        return
+    }
+
+    // Passo 2: Pedir nova senha
+    fmt.Print("\n✏️  Digite a NOVA senha (mínimo 6 caracteres): ")
+    novaSenha := lerInput()
+
+    if len(novaSenha) < 6 {
+        fmt.Println("❌ Nova senha muito curta! Mínimo 6 caracteres.")
+        return
+    }
+
+    // Verificar se a nova senha é diferente da atual
+    if novaSenha == senhaAtual {
+        fmt.Println("⚠️  A nova senha deve ser diferente da atual!")
+        return
+    }
+
+    // Passo 3: Confirmar nova senha
+    fmt.Print("🔑 Confirme a NOVA senha: ")
+    novaSenhaConfirmacao := lerInput()
+
+    if novaSenha != novaSenhaConfirmacao {
+        fmt.Println("❌ As senhas não coincidem!")
+        return
+    }
+
+    // Passo 4: Gerar hash da nova senha
+    novoHash, err := GerarHashSenha(novaSenha)
+    if err != nil {
+        fmt.Printf("❌ Erro ao processar nova senha: %v\n", err)
+        return
+    }
+
+    // Passo 5: Atualizar no banco
+    _, err = db.Exec(context.Background(),
+        "UPDATE contas SET senha=$1, updated_at=NOW() WHERE cpf=$2",
+        novoHash, sessaoAtual.CPF)
+
+    if err != nil {
+        fmt.Printf("❌ Erro ao atualizar senha: %v\n", err)
+        return
+    }
+
+    // Sucesso!
+    fmt.Println("\n╔═════════════════════════════════╗")
+    fmt.Println("   ✅ SENHA ALTERADA COM SUCESSO!   ")
+    fmt.Println("╚═════════════════════════════════╝")
+    fmt.Println("")
+    fmt.Println("   Use sua nova senha no próximo login.")
+    fmt.Println("")
 }
 
 // ============================================================
