@@ -1,0 +1,7 @@
+# Binários compilados
+/cmd/server/server
+*.exe
+*.exe~
+# Variáveis de ambiente
+.env
+.env.local
