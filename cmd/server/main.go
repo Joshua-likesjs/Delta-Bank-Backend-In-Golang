@@ -13,15 +13,15 @@ import (
     
     "github.com/gorilla/mux"
     "github.com/jackc/pgx/v5"
-    "github.com/joho/godotenv"
+   //"github.com/joho/godotenv"
 )
 
 func main() {
 
-    errgod := godotenv.Load()
-    if errgod != nil {
-        log.Fatal("Erro ao carregar o arquivo .env")
-    }
+   // errgod := godotenv.Load()
+   //  if errgod != nil {
+   //      log.Fatal("Erro ao carregar o arquivo .env")
+   // }
 
     connStr := os.Getenv("DATABASE_URL")
 
