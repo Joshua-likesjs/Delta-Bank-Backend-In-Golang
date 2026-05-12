@@ -129,7 +129,9 @@ func (s *Service) Depositar(ctx context.Context, input DepositoInput) (int, erro
     if input.Valor <= 0 || input.Valor > 10000 { return 0, domain.ErrValorInvalido }
     valorCent := int(input.Valor * 100)
 
-    s.repo.AtualizarSaldo(ctx, input.CPF, /* saldo atual */ + valorCent) // precisa buscar primeiro!
+    conta, _ := s.repo.BuscarPorCPF(ctx, input.CPF)
+
+    s.repo.AtualizarSaldo(ctx, input.CPF, conta.SaldoCentavos + valorCent) 
     s.repo.SalvarTransacao(ctx, &domain.Transacao{
         Tipo: "DEPOSITO", ValorCentavos: valorCent,
         CPFRemetente: input.CPF, CPFDestinatario: input.CPF,
