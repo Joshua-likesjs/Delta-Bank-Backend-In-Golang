@@ -43,9 +43,9 @@ type Transacao struct {
 }
 
 // ValorFormatado retorna o valor formatado com sinal
-func (t *Transacao) ValorFormatado() string {
+func (t *Transacao) ValorFormatado(cpfUsuario string) string {
     valor := float64(t.ValorCentavos) / 100
-    if t.EhEntradaParaCPF("") { // método auxiliar
+    if t.EhEntradaParaCPF(cpfUsuario) { // método auxiliar
         return fmt.Sprintf("+%.2f", valor)
     }
     return fmt.Sprintf("-%.2f", valor)
