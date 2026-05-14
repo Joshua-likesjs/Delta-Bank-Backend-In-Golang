@@ -104,7 +104,7 @@ func (r *PostgresRepo) SalvarTransacao(ctx context.Context, t *domain.Transacao)
 
 func (r *PostgresRepo) ListarTransacoesPorCPF(ctx context.Context, cpf string) ([]*domain.Transacao, error) {
 	rows, err := r.db.Query(ctx,
-		`SELECT id, tipo, valor_centavos, conta_cpf_remetente, conta_cpf_destinatario, created_at,
+		`SELECT t.id, t.tipo, t.valor_centavos, t.conta_cpf_remetente, t.conta_cpf_destinatario, t.created_at,
                 COALESCE(cr.owner,'Desconhecido') as nome_remetente,
                 COALESCE(cd.owner,'Desconhecido') as nome_destinatario
          FROM transacoes t
