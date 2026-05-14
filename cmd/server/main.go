@@ -14,14 +14,14 @@ import (
 	"delta-bank/internal/repository"
 	"delta-bank/internal/usecase"
 
-  //  "github.com/joho/godotenv"
+//    "github.com/joho/godotenv"
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5"
 )
 
 func main() {
 	// FIX 2: valida DATABASE_URL antes de tentar conectar
-  //  _ = godotenv.Load()
+//    _ = godotenv.Load()
 	connStr := os.Getenv("DATABASE_URL")
 	if connStr == "" {
 		log.Fatal("DATABASE_URL não configurada")
