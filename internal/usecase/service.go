@@ -208,7 +208,7 @@ func (s *Service) Depositar(ctx context.Context, input DepositoInput) (int, erro
 		return 0, fmt.Errorf("erro salvar transacao: %w", err)
 	}
 
-	return valorCent, nil
+	return conta.SaldoCentavos + valorCent, nil
 }
 
 // ============ SAQUE ============
@@ -246,7 +246,7 @@ func (s *Service) Sacar(ctx context.Context, input SaqueInput) (int, error) {
 		return 0, fmt.Errorf("erro salvar transacao: %w", err)
 	}
 
-	return valorCent, nil
+	return conta.SaldoCentavos - valorCent, nil
 }
 
 // ============ CHAVES PIX ============
