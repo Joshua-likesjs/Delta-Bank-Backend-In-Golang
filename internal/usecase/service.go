@@ -148,13 +148,13 @@ func (s *Service) FazerPix(ctx context.Context, input PixInput) (*domain.Transac
 	}
 
 	tx := &domain.Transacao{
-		Tipo:            "TRANSACAO_PIX",
-		ValorCentavos:   valorCent,
-		CPFRemetente:    input.CPFOrigem,
-		CPFDestinatario: input.CPFDestino,
-		NomeRemetente:   origem.Nome,
+		Tipo:             "TRANSACAO_PIX",
+		ValorCentavos:    valorCent,
+		CPFRemetente:     input.CPFOrigem,
+		CPFDestinatario:  input.CPFDestino,
+		NomeRemetente:    origem.Nome,
 		NomeDestinatario: destino.Nome,
-		DataHora:        time.Now(),
+		DataHora:         time.Now(),
 	}
 
 	// FIX 1 + 4: executa as três escritas em transação atômica e trata erros
@@ -181,6 +181,11 @@ func (s *Service) Depositar(ctx context.Context, input DepositoInput) (int, erro
 	if input.Valor <= 0 || input.Valor > 10000 {
 		return 0, domain.ErrValorInvalido
 	}
+
+	cpf, ok := validation.ValidadorCPF(input.CPF)
+    if !ok { return 0, domain.ErrCPFINvalido }
+    input.CPF = cpf
+
 	valorCent := int(input.Valor * 100)
 
 	conta, err := s.repo.BuscarPorCPF(ctx, input.CPF)
@@ -250,6 +255,19 @@ func (s *Service) ListarChaves(ctx context.Context, cpf string) ([]*domain.Chave
 }
 
 func (s *Service) AdicionarChave(ctx context.Context, input AdicionarChaveInput) (*domain.ChavePix, error) {
+
+	// adiciona essa validação no início
+	cpf, ok := validation.ValidadorCPF(input.CPF)
+	if !ok {
+		return nil, domain.ErrCPFINvalido
+	}
+	input.CPF = cpf
+
+	_, err := s.repo.BuscarPorCPF(ctx, input.CPF)
+	if err != nil {
+		return nil, domain.ErrContaNaoEncontrada
+	}
+
 	qtd, _ := s.repo.ContarChavesPorCPF(ctx, input.CPF)
 	if qtd >= 5 {
 		return nil, domain.ErrLimiteChavesAtingido
