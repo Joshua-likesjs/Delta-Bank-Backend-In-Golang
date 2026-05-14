@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"delta-bank/internal/domain"
@@ -294,6 +295,35 @@ func (s *Service) AdicionarChave(ctx context.Context, input AdicionarChaveInput)
 	qtd, _ := s.repo.ContarChavesPorCPF(ctx, input.CPF)
 	if qtd >= 5 {
 		return nil, domain.ErrLimiteChavesAtingido
+	}
+
+	// normaliza tipo para maiúsculas — "cpf", "Cpf", "CPF" viram "CPF"
+	input.Tipo = strings.ToUpper(input.Tipo)
+
+	// valida e limpa o valor conforme o tipo
+	switch input.Tipo {
+	case "CPF":
+		valor, ok := validation.ValidadorCPF(input.Valor)
+		if !ok {
+			return nil, domain.ErrCPFINvalido
+		}
+		input.Valor = valor
+	case "EMAIL":
+		valor, ok := validation.ValidadorEmail(input.Valor)
+		if !ok {
+			return nil, domain.ErrValorInvalido
+		}
+		input.Valor = valor
+	case "TELEFONE":
+		valor, ok := validation.ValidadorTelefone(input.Valor)
+		if !ok {
+			return nil, domain.ErrValorInvalido
+		}
+		input.Valor = valor
+	case "ALEATORIA":
+		input.Valor = validation.GerarChaveAleatoria()
+	default:
+		return nil, domain.ErrValorInvalido
 	}
 
 	existe, _ := s.repo.BuscarChavePorValor(ctx, input.Valor)
