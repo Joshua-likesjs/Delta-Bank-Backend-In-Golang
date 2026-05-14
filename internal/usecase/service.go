@@ -89,6 +89,10 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (*domain.Conta, e
 
 // ============ CONSULTAR SALDO ============
 func (s *Service) ConsultarSaldo(ctx context.Context, cpf string) (*SaldoOutput, error) {
+	cpf, ok := validation.ValidadorCPF(cpf)
+	if !ok {
+		return nil, domain.ErrCPFINvalido
+	}
 	conta, err := s.repo.BuscarPorCPF(ctx, cpf)
 	if err != nil {
 		return nil, domain.ErrContaNaoEncontrada
@@ -102,6 +106,10 @@ func (s *Service) ConsultarSaldo(ctx context.Context, cpf string) (*SaldoOutput,
 
 // ============ EXTRATO ============
 func (s *Service) Extrato(ctx context.Context, cpf string) ([]*domain.Transacao, int, error) {
+	cpf, ok := validation.ValidadorCPF(cpf)
+	if !ok {
+		return nil, 0, domain.ErrCPFINvalido
+	}
 	conta, err := s.repo.BuscarPorCPF(ctx, cpf)
 	if err != nil {
 		return nil, 0, domain.ErrContaNaoEncontrada
@@ -119,10 +127,20 @@ func (s *Service) Extrato(ctx context.Context, cpf string) ([]*domain.Transacao,
 // FIX 1: todas as escritas agora ocorrem dentro de uma transação atômica
 // para evitar inconsistência de saldo em caso de falha parcial.
 func (s *Service) FazerPix(ctx context.Context, input PixInput) (*domain.Transacao, error) {
-	// FIX 6: condição redundante removida (< 1 já cobre <= 0 para float)
 	if input.Valor < 1 {
 		return nil, domain.ErrValorInvalido
 	}
+
+	cpfOrigem, ok := validation.ValidadorCPF(input.CPFOrigem)
+	if !ok {
+		return nil, domain.ErrCPFINvalido
+	}
+	cpfDestino, ok := validation.ValidadorCPF(input.CPFDestino)
+	if !ok {
+		return nil, domain.ErrDestinatarioNaoEncontrado
+	}
+	input.CPFOrigem = cpfOrigem
+	input.CPFDestino = cpfDestino
 
 	valorCent := int(input.Valor * 100)
 
@@ -148,13 +166,13 @@ func (s *Service) FazerPix(ctx context.Context, input PixInput) (*domain.Transac
 	}
 
 	tx := &domain.Transacao{
-		Tipo:             "TRANSACAO_PIX",
-		ValorCentavos:    valorCent,
-		CPFRemetente:     input.CPFOrigem,
-		CPFDestinatario:  input.CPFDestino,
-		NomeRemetente:    origem.Nome,
+		Tipo:            "TRANSACAO_PIX",
+		ValorCentavos:   valorCent,
+		CPFRemetente:    input.CPFOrigem,
+		CPFDestinatario: input.CPFDestino,
+		NomeRemetente:   origem.Nome,
 		NomeDestinatario: destino.Nome,
-		DataHora:         time.Now(),
+		DataHora:        time.Now(),
 	}
 
 	// FIX 1 + 4: executa as três escritas em transação atômica e trata erros
@@ -183,8 +201,10 @@ func (s *Service) Depositar(ctx context.Context, input DepositoInput) (int, erro
 	}
 
 	cpf, ok := validation.ValidadorCPF(input.CPF)
-    if !ok { return 0, domain.ErrCPFINvalido }
-    input.CPF = cpf
+	if !ok {
+		return 0, domain.ErrCPFINvalido
+	}
+	input.CPF = cpf
 
 	valorCent := int(input.Valor * 100)
 
@@ -208,7 +228,7 @@ func (s *Service) Depositar(ctx context.Context, input DepositoInput) (int, erro
 		return 0, fmt.Errorf("erro salvar transacao: %w", err)
 	}
 
-	return conta.SaldoCentavos + valorCent, nil
+	return valorCent, nil
 }
 
 // ============ SAQUE ============
@@ -217,8 +237,14 @@ func (s *Service) Sacar(ctx context.Context, input SaqueInput) (int, error) {
 		return 0, domain.ErrValorInvalido
 	}
 	if int(input.Valor*100)%1000 != 0 {
-		return 0, domain.ErrValorInvalido // múltiplo de 10
+		return 0, domain.ErrValorInvalido
 	}
+
+	cpf, ok := validation.ValidadorCPF(input.CPF)
+	if !ok {
+		return 0, domain.ErrCPFINvalido
+	}
+	input.CPF = cpf
 
 	valorCent := int(input.Valor * 100)
 
@@ -246,27 +272,24 @@ func (s *Service) Sacar(ctx context.Context, input SaqueInput) (int, error) {
 		return 0, fmt.Errorf("erro salvar transacao: %w", err)
 	}
 
-	return conta.SaldoCentavos - valorCent, nil
+	return valorCent, nil
 }
 
 // ============ CHAVES PIX ============
 func (s *Service) ListarChaves(ctx context.Context, cpf string) ([]*domain.ChavePix, error) {
+	cpf, ok := validation.ValidadorCPF(cpf)
+	if !ok {
+		return nil, domain.ErrCPFINvalido
+	}
 	return s.repo.ListarChavesPorCPF(ctx, cpf)
 }
 
 func (s *Service) AdicionarChave(ctx context.Context, input AdicionarChaveInput) (*domain.ChavePix, error) {
-
-	// adiciona essa validação no início
 	cpf, ok := validation.ValidadorCPF(input.CPF)
 	if !ok {
 		return nil, domain.ErrCPFINvalido
 	}
 	input.CPF = cpf
-
-	_, err := s.repo.BuscarPorCPF(ctx, input.CPF)
-	if err != nil {
-		return nil, domain.ErrContaNaoEncontrada
-	}
 
 	qtd, _ := s.repo.ContarChavesPorCPF(ctx, input.CPF)
 	if qtd >= 5 {
@@ -286,6 +309,12 @@ func (s *Service) AdicionarChave(ctx context.Context, input AdicionarChaveInput)
 }
 
 func (s *Service) RemoverChave(ctx context.Context, input RemoverChaveInput) error {
+	cpf, ok := validation.ValidadorCPF(input.CPF)
+	if !ok {
+		return domain.ErrCPFINvalido
+	}
+	input.CPF = cpf
+
 	err := s.repo.DeletarChavePix(ctx, input.CPF, input.Tipo, input.Valor)
 	if err != nil {
 		return fmt.Errorf("erro remover: %w", err)
@@ -295,6 +324,12 @@ func (s *Service) RemoverChave(ctx context.Context, input RemoverChaveInput) err
 
 // ============ MUDAR SENHA ============
 func (s *Service) MudarSenha(ctx context.Context, input MudarSenhaInput) error {
+	cpf, ok := validation.ValidadorCPF(input.CPF)
+	if !ok {
+		return domain.ErrCPFINvalido
+	}
+	input.CPF = cpf
+
 	conta, err := s.repo.BuscarPorCPF(ctx, input.CPF)
 	if err != nil {
 		return domain.ErrContaNaoEncontrada
@@ -319,6 +354,12 @@ func (s *Service) MudarSenha(ctx context.Context, input MudarSenhaInput) error {
 // ============ EDITAR DADOS ============
 // FIX 5: retorna erro explícito quando nenhum campo válido foi fornecido
 func (s *Service) EditarDados(ctx context.Context, input EditarDadosInput) error {
+	cpf, ok := validation.ValidadorCPF(input.CPF)
+	if !ok {
+		return domain.ErrCPFINvalido
+	}
+	input.CPF = cpf
+
 	if len(input.NovoNome) >= 3 {
 		return s.repo.AtualizarDados(ctx, input.CPF, input.NovoNome, 0)
 	}
