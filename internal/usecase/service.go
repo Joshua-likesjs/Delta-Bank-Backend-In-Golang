@@ -344,6 +344,27 @@ func (s *Service) RemoverChave(ctx context.Context, input RemoverChaveInput) err
 		return domain.ErrCPFINvalido
 	}
 	input.CPF = cpf
+	input.Tipo = strings.ToUpper(input.Tipo)
+
+	// limpa o valor igual ao AdicionarChave
+	switch input.Tipo {
+	case "CPF":
+		valor, ok := validation.ValidadorCPF(input.Valor)
+		if !ok { return domain.ErrCPFINvalido }
+		input.Valor = valor
+	case "EMAIL":
+		valor, ok := validation.ValidadorEmail(input.Valor)
+		if !ok { return domain.ErrValorInvalido }
+		input.Valor = valor
+	case "TELEFONE":
+		valor, ok := validation.ValidadorTelefone(input.Valor)
+		if !ok { return domain.ErrValorInvalido }
+		input.Valor = valor
+	case "ALEATORIA":
+		// valor já está limpo, nada a fazer
+	default:
+		return domain.ErrValorInvalido
+	}
 
 	err := s.repo.DeletarChavePix(ctx, input.CPF, input.Tipo, input.Valor)
 	if err != nil {
