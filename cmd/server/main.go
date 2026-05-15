@@ -127,8 +127,8 @@ func buildRouter(hdl *handler.APIHandler, log *slog.Logger) *mux.Router {
 	// Contas
 	api.HandleFunc("/contas", hdl.CriarConta).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/login", hdl.Login).Methods(http.MethodPost, http.MethodOptions)
-	api.HandleFunc("/saldo/{cpf}", hdl.Saldo).Methods(http.MethodGet)
-	api.HandleFunc("/extrato/{cpf}", hdl.Extrato).Methods(http.MethodGet)
+	api.HandleFunc("/saldo/{cpf}", hdl.Saldo).Methods(http.MethodGet, http.MethodOptions)
+	api.HandleFunc("/extrato/{cpf}", hdl.Extrato).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("/dados", hdl.EditarDados).Methods(http.MethodPut, http.MethodOptions)
 	api.HandleFunc("/senha", hdl.MudarSenha).Methods(http.MethodPut, http.MethodOptions)
 
@@ -138,7 +138,7 @@ func buildRouter(hdl *handler.APIHandler, log *slog.Logger) *mux.Router {
 	api.HandleFunc("/sacar", hdl.Sacar).Methods(http.MethodPost, http.MethodOptions)
 
 	// Chaves PIX
-	api.HandleFunc("/chaves-pix/{cpf}", hdl.ListarChaves).Methods(http.MethodGet)
+	api.HandleFunc("/chaves-pix/{cpf}", hdl.ListarChaves).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("/chaves-pix", hdl.AdicionarChave).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/chaves-pix", hdl.RemoverChave).Methods(http.MethodDelete, http.MethodOptions)
 
