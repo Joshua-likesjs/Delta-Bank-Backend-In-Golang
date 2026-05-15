@@ -41,9 +41,6 @@ func (s *Service) CriarConta(ctx context.Context, input CriarContaInput) (*domai
 	if !validation.ValidadorSenha(input.Senha) {
 		return nil, domain.ErrSenhaCurta
 	}
-	if input.Saldo < 10 {
-		return nil, domain.ErrValorInvalido
-	}
 
 	existe, err := s.repo.ExisteContaPorCPF(ctx, cpf)
 	if err != nil {
@@ -61,7 +58,7 @@ func (s *Service) CriarConta(ctx context.Context, input CriarContaInput) (*domai
 	conta := &domain.Conta{
 		CPF:           cpf,
 		Nome:          strings.TrimSpace(input.Nome),
-		SaldoCentavos: int(input.Saldo * 100),
+		SaldoCentavos: 0,
 		SenhaHash:     hash,
 		LimiteDiario:  5_000_000, // R$ 50.000,00
 	}
